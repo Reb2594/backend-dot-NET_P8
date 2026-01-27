@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Globalization;
 using TourGuide.LibrairiesWrappers.Interfaces;
+using TourGuide.Models;
 using TourGuide.Services.Interfaces;
 using TourGuide.Users;
 using TourGuide.Utilities;
@@ -15,18 +16,20 @@ public class TourGuideService : ITourGuideService
     private readonly ILogger _logger;
     private readonly IGpsUtil _gpsUtil;
     private readonly IRewardsService _rewardsService;
+    private readonly IRewardCentral _rewardCentral;
     private readonly TripPricer.TripPricer _tripPricer;
     public Tracker Tracker { get; private set; }
     private readonly Dictionary<string, User> _internalUserMap = new();
     private const string TripPricerApiKey = "test-server-api-key";
     private bool _testMode = true;
 
-    public TourGuideService(ILogger<TourGuideService> logger, IGpsUtil gpsUtil, IRewardsService rewardsService, ILoggerFactory loggerFactory)
+    public TourGuideService(ILogger<TourGuideService> logger, IGpsUtil gpsUtil, IRewardsService rewardsService, IRewardCentral rewardCentral, ILoggerFactory loggerFactory)
     {
         _logger = logger;
         _tripPricer = new();
         _gpsUtil = gpsUtil;
         _rewardsService = rewardsService;
+        _rewardCentral = rewardCentral;
 
         CultureInfo.CurrentCulture = new CultureInfo("en-US");
 
@@ -90,15 +93,29 @@ public class TourGuideService : ITourGuideService
         return visitedLocation;
     }
 
-    public List<Attraction> GetNearByAttractions(VisitedLocation visitedLocation)
+    public List<NearbyAttractionDto> GetNearByAttractions(VisitedLocation visitedLocation)
     {
-        List<Attraction> nearbyAttractions = new ();
-        foreach (var attraction in _gpsUtil.GetAttractions())
+        List<NearbyAttractionDto> nearbyAttractions = new ();
+        var attractions = _gpsUtil.GetAttractions();
+        foreach (var attraction in attractions)
         {
-            if (_rewardsService.IsWithinAttractionProximity(attraction, visitedLocation.Location))
-            {
-                nearbyAttractions.Add(attraction);
-            }
+            var distance = _rewardsService.GetDistance(attraction, visitedLocation.Location);
+            var rewardPoints = _rewardCentral.GetAttractionRewardPoints(attraction.AttractionId, visitedLocation.UserId);
+            var nearbyAttraction = new NearbyAttractionDto(            
+                attraction.AttractionName,
+                attraction,
+                visitedLocation.Location,
+                distance,
+                rewardPoints
+            );
+            nearbyAttractions.Add(nearbyAttraction);
+        }
+
+        nearbyAttractions.Sort((a, b) => a.DistanceInMiles.CompareTo(b.DistanceInMiles));
+
+        if (nearbyAttractions.Count > 5)
+        {
+            return nearbyAttractions.GetRange(0, 5);
         }
 
         return nearbyAttractions;
