@@ -16,15 +16,11 @@ namespace TourGuideTest
     {
         public DependencyFixture()
         {
-            Initialize();            
+                    
         }
 
-        public void Cleanup()
-        {           
-            Initialize();
-        }
 
-        public void Initialize(int internalUserNumber = 100)
+        public async Task InitializeAsync(int internalUserNumber = 100)
         {
             var loggerFactory = LoggerFactory.Create(builder =>
             {
@@ -37,6 +33,9 @@ namespace TourGuideTest
             RewardCentral = new RewardCentralWrapper();
             GpsUtil = new GpsUtilWrapper();
             RewardsService = new RewardsService(GpsUtil, RewardCentral);
+
+            await RewardsService.InitializeAttractionsAsync();
+
             TourGuideService = new TourGuideService(tourGuideLogger, GpsUtil, RewardsService, RewardCentral, loggerFactory);
         }
 

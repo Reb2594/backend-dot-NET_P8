@@ -2,6 +2,7 @@
 using TourGuide.LibrairiesWrappers.Interfaces;
 using TourGuide.Services.Interfaces;
 using TourGuide.Users;
+using TourGuide.Utilities;
 
 namespace TourGuide.Services;
 
@@ -14,6 +15,7 @@ public class RewardsService : IRewardsService
     private readonly IGpsUtil _gpsUtil;
     private readonly IRewardCentral _rewardsCentral;
     private static int count = 0;
+    private List<Attraction> _attractions;
 
     public RewardsService(IGpsUtil gpsUtil, IRewardCentral rewardCentral)
     {
@@ -32,52 +34,67 @@ public class RewardsService : IRewardsService
         _proximityBuffer = _defaultProximityBuffer;
     }
 
-    public void CalculateRewards(User user)
+    public async Task InitializeAttractionsAsync()
     {
-        count++;
-        List<VisitedLocation> userLocations = user.VisitedLocations.ToList();
-        List<Attraction> attractions = _gpsUtil.GetAttractions();
+        _attractions = await _gpsUtil.GetAttractions();
+    }
 
-        foreach (var visitedLocation in userLocations)
+    public async Task CalculateRewards(User user)
+    {
+        var userVisitedLocations = user.VisitedLocations.ToList();
+
+        foreach (var visitedLocation in userVisitedLocations)
         {
-            foreach (var attraction in attractions)
+            await CalculateRewards(user, visitedLocation);
+        }
+    }
+
+    public async Task CalculateRewards(User user, VisitedLocation visitedLocation)
+    {
+        var rewardedAttractions = new HashSet<string>(
+            user.UserRewards.Select(r => r.Attraction.AttractionName)
+        );
+
+        var precomputedLocation = new PrecomputedLocation(visitedLocation.Location);
+
+        foreach (var attraction in _attractions)
+        {
+            if (rewardedAttractions.Contains(attraction.AttractionName))
+                continue;
+
+            if (NearAttraction(precomputedLocation, attraction))
             {
-                if (!user.UserRewards.Any(r => r.Attraction.AttractionName == attraction.AttractionName))
-                {
-                    if (NearAttraction(visitedLocation, attraction))
-                    {
-                        user.AddUserReward(new UserReward(visitedLocation, attraction, GetRewardPoints(attraction, user)));
-                    }
-                }
+                int rewardPoints = await GetRewardPointsAsync(attraction, user);
+                user.AddUserReward(
+                    new UserReward(visitedLocation, attraction, rewardPoints)
+                );
             }
         }
     }
 
     public bool IsWithinAttractionProximity(Attraction attraction, Locations location)
     {
-        Console.WriteLine(GetDistance(attraction, location));
-        return GetDistance(attraction, location) <= _attractionProximityRange;
+        var precomputedLocation = new PrecomputedLocation(location);
+        return GetDistance(precomputedLocation, attraction) <= _attractionProximityRange;
     }
 
-    private bool NearAttraction(VisitedLocation visitedLocation, Attraction attraction)
+    private bool NearAttraction(PrecomputedLocation location, Attraction attraction)
     {
-        return GetDistance(attraction, visitedLocation.Location) <= _proximityBuffer;
+        return GetDistance(location, attraction) <= _proximityBuffer;
     }
 
-    private int GetRewardPoints(Attraction attraction, User user)
+    private async Task<int> GetRewardPointsAsync(Attraction attraction, User user)
     {
-        return _rewardsCentral.GetAttractionRewardPoints(attraction.AttractionId, user.UserId);
+        return await _rewardsCentral.GetAttractionRewardPointsAsync(attraction.AttractionId, user.UserId);
     }
 
-    public double GetDistance(Locations loc1, Locations loc2)
+    public double GetDistance(PrecomputedLocation loc, Attraction attraction)
     {
-        double lat1 = Math.PI * loc1.Latitude / 180.0;
-        double lon1 = Math.PI * loc1.Longitude / 180.0;
-        double lat2 = Math.PI * loc2.Latitude / 180.0;
-        double lon2 = Math.PI * loc2.Longitude / 180.0;
-
-        double angle = Math.Acos(Math.Sin(lat1) * Math.Sin(lat2)
-                                + Math.Cos(lat1) * Math.Cos(lat2) * Math.Cos(lon1 - lon2));
+        double angle = Math.Acos(
+            loc.SinLat * attraction.SinLat
+            + loc.CosLat * attraction.CosLat
+            * Math.Cos(loc.LonRad - attraction.LonRad)
+        );
 
         double nauticalMiles = 60.0 * angle * 180.0 / Math.PI;
         return StatuteMilesPerNauticalMile * nauticalMiles;

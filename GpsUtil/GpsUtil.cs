@@ -35,9 +35,9 @@ public class GpsUtil
         }
     }
 
-    public List<Attraction> GetAttractions()
+    public async Task<List<Attraction>> GetAttractions()
     {
-        rateLimiter.Wait();
+        await rateLimiter.WaitAsync();
 
         try
         {

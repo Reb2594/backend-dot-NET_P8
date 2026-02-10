@@ -9,14 +9,14 @@ namespace TourGuide.Services.Interfaces
     public interface ITourGuideService
     {
         Tracker Tracker { get; }
-
+        Task InitializeAttractionsAsync();
         void AddUser(User user);
         List<User> GetAllUsers();
-        List<NearbyAttractionDto> GetNearByAttractions(VisitedLocation visitedLocation);
+        Task<List<NearbyAttractionDto>> GetNearByAttractionsAsync(VisitedLocation visitedLocation);
         List<Provider> GetTripDeals(User user);
         User GetUser(string userName);
-        VisitedLocation GetUserLocation(User user);
+        Task<VisitedLocation> GetUserLocation(User user);
         List<UserReward> GetUserRewards(User user);
-        VisitedLocation TrackUserLocation(User user);
+        Task<VisitedLocation> TrackUserLocationAsync(User user);
     }
 }

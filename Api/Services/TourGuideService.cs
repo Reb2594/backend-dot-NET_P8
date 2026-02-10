@@ -7,7 +7,7 @@ using TourGuide.Models;
 using TourGuide.Services.Interfaces;
 using TourGuide.Users;
 using TourGuide.Utilities;
-using TripPricer;
+using TripPricer; 
 
 namespace TourGuide.Services;
 
@@ -22,6 +22,7 @@ public class TourGuideService : ITourGuideService
     private readonly Dictionary<string, User> _internalUserMap = new();
     private const string TripPricerApiKey = "test-server-api-key";
     private bool _testMode = true;
+    private List<Attraction> _attractions;
 
     public TourGuideService(ILogger<TourGuideService> logger, IGpsUtil gpsUtil, IRewardsService rewardsService, IRewardCentral rewardCentral, ILoggerFactory loggerFactory)
     {
@@ -46,15 +47,24 @@ public class TourGuideService : ITourGuideService
         Tracker = new Tracker(this, trackerLogger);
         AddShutDownHook();
     }
+    public async Task InitializeAttractionsAsync()
+    {
+        _attractions = await _gpsUtil.GetAttractions();
+    }
 
     public List<UserReward> GetUserRewards(User user)
     {
         return user.UserRewards;
     }
 
-    public VisitedLocation GetUserLocation(User user)
+    public async Task<VisitedLocation> GetUserLocation(User user)
     {
-        return user.VisitedLocations.Any() ? user.GetLastVisitedLocation() : TrackUserLocation(user);
+        if (!user.VisitedLocations.Any())
+        {
+            return await TrackUserLocationAsync(user);
+        }
+
+        return user.GetLastVisitedLocation();
     }
 
     public User GetUser(string userName)
@@ -85,40 +95,40 @@ public class TourGuideService : ITourGuideService
         return providers;
     }
 
-    public VisitedLocation TrackUserLocation(User user)
+    public async Task<VisitedLocation> GetUserLocationAsync(User user)
     {
-        VisitedLocation visitedLocation = _gpsUtil.GetUserLocation(user.UserId);
+        return await Task.Run(() => _gpsUtil.GetUserLocation(user.UserId));
+    }
+
+
+    public async Task<VisitedLocation> TrackUserLocationAsync(User user)
+    {
+        VisitedLocation visitedLocation = await GetUserLocationAsync(user);
         user.AddToVisitedLocations(visitedLocation);
-        _rewardsService.CalculateRewards(user);
+        await _rewardsService.CalculateRewards(user, visitedLocation);
         return visitedLocation;
     }
 
-    public List<NearbyAttractionDto> GetNearByAttractions(VisitedLocation visitedLocation)
+    public async Task<List<NearbyAttractionDto>> GetNearByAttractionsAsync(VisitedLocation visitedLocation)
     {
-        List<NearbyAttractionDto> nearbyAttractions = new ();
-        var attractions = _gpsUtil.GetAttractions();
-        foreach (var attraction in attractions)
+        PrecomputedLocation precomputedLocation = new PrecomputedLocation(visitedLocation.Location);
+        var attractionsDto = new List<NearbyAttractionDto>();
+
+        foreach (var attraction in _attractions)
         {
-            var distance = _rewardsService.GetDistance(attraction, visitedLocation.Location);
-            var rewardPoints = _rewardCentral.GetAttractionRewardPoints(attraction.AttractionId, visitedLocation.UserId);
-            var nearbyAttraction = new NearbyAttractionDto(            
+            var distance = _rewardsService.GetDistance(precomputedLocation, attraction);
+            var rewardPoints = await _rewardCentral.GetAttractionRewardPointsAsync(attraction.AttractionId, visitedLocation.UserId);
+
+            attractionsDto.Add(new NearbyAttractionDto(
                 attraction.AttractionName,
                 attraction,
                 visitedLocation.Location,
                 distance,
                 rewardPoints
-            );
-            nearbyAttractions.Add(nearbyAttraction);
+            ));
         }
 
-        nearbyAttractions.Sort((a, b) => a.DistanceInMiles.CompareTo(b.DistanceInMiles));
-
-        if (nearbyAttractions.Count > 5)
-        {
-            return nearbyAttractions.GetRange(0, 5);
-        }
-
-        return nearbyAttractions;
+        return attractionsDto.OrderBy(x => x.DistanceInMiles).Take(5).ToList();
     }
 
     private void AddShutDownHook()
