@@ -3,11 +3,11 @@ name: TourGuide CI
 on:
   push:
     branches:
-      - main
+      - master
       - dev
   pull_request:
     branches:
-      - main
+      - master
 
 jobs:
   build-test-package:
@@ -35,15 +35,25 @@ jobs:
 
       # 5. Lancer les tests
       - name: Run tests
-        run: dotnet test TourGuide.sln --configuration Release --no-build --verbosity normal
+        run: dotnet test TourGuideTest/TourGuideTest.csproj --configuration Release --no-build --logger trx --verbosity normal
 
-      # 6. Publier les artéfacts
+      # 6. Upload des résultats de tests
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/*.trx'
+
+      # 7. Publier les artéfacts
       - name: Publish application
-        run: dotnet publish TourGuide.sln --configuration Release --output ./publish --no-build
+        run: dotnet publish TourGuide.sln --configuration Release --output publish
 
-      # 7. Upload des artéfacts dans GitHub
+      # 8. Upload des artéfacts
+      - name: Zip artefact
+        run: zip -r TourGuide.zip publish
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: TourGuide-build
-          path: ./publish
+          name: TourGuide-zip
+          path: TourGuide.zip
