@@ -105,7 +105,7 @@ public class TourGuideService : ITourGuideService
     {
         VisitedLocation visitedLocation = await GetUserLocationAsync(user);
         user.AddToVisitedLocations(visitedLocation);
-        await _rewardsService.CalculateRewards(user, visitedLocation);
+        await _rewardsService.CalculateRewards(user);
         return visitedLocation;
     }
 
