@@ -37,6 +37,8 @@ namespace TourGuideTest
             await RewardsService.InitializeAttractionsAsync();
 
             TourGuideService = new TourGuideService(tourGuideLogger, GpsUtil, RewardsService, RewardCentral, loggerFactory);
+
+            await TourGuideService.InitializeAttractionsAsync();
         }
 
         public IRewardCentral RewardCentral { get; set; }

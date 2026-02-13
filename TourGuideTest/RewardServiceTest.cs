@@ -23,9 +23,9 @@ namespace TourGuideTest
             await _fixture.InitializeAsync(0);
 
             var user = new User(Guid.NewGuid(), "jon", "000", "jon@tourGuide.com");
-            var attraction = (await _fixture.GpsUtil.GetAttractions()).First();
+            var attraction = await _fixture.GpsUtil.GetAttractions();
 
-            user.AddToVisitedLocations(new VisitedLocation(user.UserId, attraction, DateTime.Now));
+            user.AddToVisitedLocations(new VisitedLocation(user.UserId, attraction.First(), DateTime.Now));
 
             await _fixture.TourGuideService.TrackUserLocationAsync(user);
 
