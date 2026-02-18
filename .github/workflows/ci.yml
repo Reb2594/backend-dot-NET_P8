@@ -33,7 +33,7 @@ jobs:
     - name: Build solution
       run: dotnet build TourGuide.sln --configuration Release --no-restore
 
-    # 5. Lancer les tests AVEC COVERAGE
+    # 5. Lancer les tests avec coverage
     - name: Run tests with coverage
       run: |
         dotnet test TourGuideTest/TourGuideTest.csproj \
@@ -43,11 +43,25 @@ jobs:
           --collect:"XPlat Code Coverage" \
           --results-directory ./coverage
 
-    # 6. Analyser et afficher le coverage
+    # 5b. Consolider le fichier de coverage
+    - name: Prepare coverage report
+      run: |
+        COVERAGE_FILE=$(find coverage -name 'coverage.cobertura.xml' | head -1)
+        
+        if [ -z "$COVERAGE_FILE" ]; then
+          echo "::error::Coverage file not found"
+          exit 1
+        fi
+        
+        echo "📊 Coverage file found: $COVERAGE_FILE"
+        mkdir -p coverage-report
+        cp "$COVERAGE_FILE" coverage-report/coverage.cobertura.xml
+
+    # 6. Afficher le coverage dans GitHub
     - name: Code Coverage Report
       uses: irongut/CodeCoverageSummary@v1.3.0
       with:
-        filename: coverage/**/coverage.cobertura.xml
+        filename: coverage-report/coverage.cobertura.xml
         badge: true
         fail_below_min: false
         format: markdown
@@ -56,16 +70,16 @@ jobs:
         indicators: true
         output: both
         thresholds: '60 80'
-        
-    # 7. Afficher le résumé dans GitHub Actions
+
+    # 7. Ajouter le résumé sur les PR
     - name: Add Coverage PR Comment
       uses: marocchino/sticky-pull-request-comment@v2
       if: github.event_name == 'pull_request'
       with:
         recreate: true
-        path: code-coverage-results.md   
+        path: code-coverage-results.md
 
-     # 8. Upload des résultats de tests
+    # 8. Upload des résultats de tests
     - name: Upload test results
       uses: actions/upload-artifact@v4
       with:
@@ -78,7 +92,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: coverage/
+        path: coverage-report/
       if: always()
 
     # 10. Publier les artéfacts
