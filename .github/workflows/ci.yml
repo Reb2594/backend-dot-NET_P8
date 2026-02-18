@@ -15,45 +15,82 @@ jobs:
 
     steps:
 
-      # 1. RÈcupÈrer le code du repository
-      - name: Checkout code
-        uses: actions/checkout@v4
+    # 1. R√©cup√©rer le code du repository
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      # 2. Installer .NET
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '7.0.x'
+    # 2. Installer .NET
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '7.0.x'
 
-      # 3. Restaurer les dÈpendances
-      - name: Restore dependencies
-        run: dotnet restore TourGuide.sln
+    # 3. Restaurer les d√©pendances
+    - name: Restore dependencies
+      run: dotnet restore TourGuide.sln
 
-      # 4. Compiler la solution
-      - name: Build solution
-        run: dotnet build TourGuide.sln --configuration Release --no-restore
+    # 4. Compiler la solution
+    - name: Build solution
+      run: dotnet build TourGuide.sln --configuration Release --no-restore
 
-      # 5. Lancer les tests
-      - name: Run tests
-        run: dotnet test TourGuideTest/TourGuideTest.csproj --configuration Release --no-build --logger trx --verbosity normal
+    # 5. Lancer les tests AVEC COVERAGE
+    - name: Run tests with coverage
+      run: |
+        dotnet test TourGuideTest/TourGuideTest.csproj \
+          --configuration Release \
+          --no-build \
+          --logger trx \
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage
 
-      # 6. Upload des rÈsultats de tests
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: '**/*.trx'
+    # 6. Analyser et afficher le coverage
+    - name: Code Coverage Report
+      uses: irongut/CodeCoverageSummary@v1.3.0
+      with:
+        filename: coverage/**/coverage.cobertura.xml
+        badge: true
+        fail_below_min: false
+        format: markdown
+        hide_branch_rate: false
+        hide_complexity: true
+        indicators: true
+        output: both
+        thresholds: '60 80'
+        
+    # 7. Afficher le r√©sum√© dans GitHub Actions
+    - name: Add Coverage PR Comment
+      uses: marocchino/sticky-pull-request-comment@v2
+      if: github.event_name == 'pull_request'
+      with:
+        recreate: true
+        path: code-coverage-results.md   
 
-      # 7. Publier les artÈfacts
-      - name: Publish application
-        run: dotnet publish TourGuide.sln --configuration Release --output publish
+     # 8. Upload des r√©sultats de tests
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: '**/*.trx'
+      if: always()
 
-      # 8. Upload des artÈfacts
-      - name: Zip artefact
-        run: zip -r TourGuide.zip publish
+    # 9. Upload du rapport de coverage
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage/
+      if: always()
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: TourGuide-zip
-          path: TourGuide.zip
+    # 10. Publier les art√©facts
+    - name: Publish application
+      run: dotnet publish TourGuide.sln --configuration Release --output publish
+
+    # 11. Upload des art√©facts
+    - name: Zip artefact
+      run: zip -r TourGuide.zip publish
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: TourGuide-zip
+        path: TourGuide.zip
