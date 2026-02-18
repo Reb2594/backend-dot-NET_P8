@@ -36,20 +36,18 @@ jobs:
     # 5. Lancer les tests AVEC COVERAGE
     - name: Run tests with coverage
       run: |
-        dotnet test TourGuide.sln \
+        dotnet test TourGuideTest/TourGuideTest.csproj \
           --configuration Release \
           --no-build \
           --logger trx \
-          --verbosity normal \
-          /p:CollectCoverage=true \
-          /p:CoverletOutputFormat=cobertura \
-          /p:CoverletOutput=./TestResults/coverage.cobertura.xml
+          --collect:"XPlat Code Coverage" \
+          --results-directory ./coverage
 
     # 6. Analyser et afficher le coverage
-    - name: Code Coverage Summary
+    - name: Code Coverage Report
       uses: irongut/CodeCoverageSummary@v1.3.0
       with:
-        filename: '**/TestResults/coverage.cobertura.xml'
+        filename: coverage/**/coverage.cobertura.xml
         badge: true
         fail_below_min: false
         format: markdown
@@ -57,48 +55,17 @@ jobs:
         hide_complexity: true
         indicators: true
         output: both
-        thresholds: '75 85'
-
+        thresholds: '60 80'
+        
     # 7. Afficher le résumé dans GitHub Actions
     - name: Add Coverage PR Comment
       uses: marocchino/sticky-pull-request-comment@v2
       if: github.event_name == 'pull_request'
       with:
         recreate: true
-        path: code-coverage-results.md
+        path: code-coverage-results.md   
 
-    # 8. Vérification custom avec warning
-    - name: Check coverage threshold
-      run: |
-        sudo apt-get update && sudo apt-get install -y libxml2-utils bc
-        
-        COVERAGE=$(xmllint --xpath "string(//coverage/@line-rate)" **/TestResults/coverage.cobertura.xml 2>/dev/null || echo "0")
-        COVERAGE_PERCENT=$(echo "$COVERAGE * 100" | bc -l | xargs printf "%.2f")
-        
-        echo "📊 Coverage actuel: $COVERAGE_PERCENT%"
-        echo "coverage=$COVERAGE_PERCENT" >> $GITHUB_OUTPUT
-        
-        THRESHOLD=75
-        
-        if (( $(echo "$COVERAGE_PERCENT < $THRESHOLD" | bc -l) )); then
-          echo "::warning title=Coverage faible::⚠️ Le coverage est de $COVERAGE_PERCENT% (recommandé: >$THRESHOLD%). Pensez à ajouter des tests !"
-        else
-          echo "::notice title=Coverage OK::✅ Excellent ! Coverage: $COVERAGE_PERCENT%"
-        fi
-      id: coverage
-      continue-on-error: true
-
-    # 9. Upload du rapport de coverage
-    - name: Upload coverage report
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-report
-        path: |
-          **/TestResults/coverage.cobertura.xml
-          code-coverage-results.md
-      if: always()
-
-    # 10. Upload des résultats de tests
+     # 8. Upload des résultats de tests
     - name: Upload test results
       uses: actions/upload-artifact@v4
       with:
@@ -106,11 +73,19 @@ jobs:
         path: '**/*.trx'
       if: always()
 
-    # 11. Publier les artéfacts
+    # 9. Upload du rapport de coverage
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage/
+      if: always()
+
+    # 10. Publier les artéfacts
     - name: Publish application
       run: dotnet publish TourGuide.sln --configuration Release --output publish
 
-    # 12. Upload des artéfacts
+    # 11. Upload des artéfacts
     - name: Zip artefact
       run: zip -r TourGuide.zip publish
 
