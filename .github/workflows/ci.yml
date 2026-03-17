@@ -53,7 +53,7 @@ jobs:
           exit 1
         fi
         
-        echo "📊 Coverage file found: $COVERAGE_FILE"
+        echo "Coverage file found: $COVERAGE_FILE"
         mkdir -p coverage-report
         cp "$COVERAGE_FILE" coverage-report/coverage.cobertura.xml
 
