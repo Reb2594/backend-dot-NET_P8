@@ -109,7 +109,7 @@ Une pipeline GitHub Actions est configurée pour s'exécuter automatiquement sur
 * Restauration des dépendances
 * Compilation de la solution
 * Exécution des tests avec couverture de code
-* Avertissement si la couverture < 75%
+* Indique le seuil de couverture ( <60% : insuffisant (mais pas bloquant) / 60%-80% : acceptable / >80% : bon )
 * Publication et création d'un artifact TourGuide.zip
 * Génération de rapports de tests et de couverture
 
